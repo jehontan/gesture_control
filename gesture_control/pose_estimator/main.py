@@ -170,13 +170,6 @@ class PoseEstimatorNode(rclpy.node.Node):
             },
         }
 
-        # setup timer to output rectified and body pose
-        image_output_rate_hz = self.param_image_output_rate_hz.get_parameter_value()
-        self.create_timer(1.0/image_output_rate_hz, self.image_timer_callback)
-
-        landmark_output_rate_hz = self.param_landmark_output_rate_hz.get_parameter_value()
-        self.create_timer(1.0/landmark_output_rate_hz, self.landmark_timer_callback)
-
         # setup CV bridge
         self._cv_bridge = CvBridge()
 
@@ -309,7 +302,6 @@ class PoseEstimatorNode(rclpy.node.Node):
 
             # setup shared memory
             self._shmem_img_in[cam] = SharedImage(width, height, _cs, changed_flag=self._flag_in[cam])
-
             self._shmem_img_out[cam] = SharedImage(stereo_width_px, stereo_height_px, ColorSpace.RGB, changed_flag=self._flag_out[cam])
 
             self._shmem_landmarks_out[cam]['body'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_BODY_LANDMARKS,2), dtype=np.double, changed_flag=self._flag_out[cam])
@@ -343,6 +335,13 @@ class PoseEstimatorNode(rclpy.node.Node):
         # start bg processes
         for proc in self._bg_proc.values():
             proc.start()
+
+        # setup timer to output rectified and body pose
+        image_output_rate_hz = self.param_image_output_rate_hz.value
+        self.image_timer = self.create_timer(1.0/image_output_rate_hz, self.image_timer_callback)
+
+        landmark_output_rate_hz = self.param_landmark_output_rate_hz.value
+        self.landmark_timer = self.create_timer(1.0/landmark_output_rate_hz, self.landmark_timer_callback)
 
     def image_timer_callback(self):
         '''
