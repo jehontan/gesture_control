@@ -186,6 +186,13 @@ class PoseEstimatorNode(rclpy.Node):
 
         Updates camera_info cache and triggers teardown/setup of background
         processes if camera_info is changed.
+
+        Parameters
+        ==========
+        cam : str
+            'left' or 'right' camera
+        msg : sensor_msgs.msg.CameraInfo
+            CameraInfo ROS message.
         '''
 
         # ignore timestamp
@@ -199,6 +206,13 @@ class PoseEstimatorNode(rclpy.Node):
     def image_callback(self, cam, msg):
         '''
         Passes image via shmem to background process for processing.
+
+        Parameters
+        ==========
+        cam : str
+            'left' or 'right' camera
+        msg : sensor_msgs.msg.Image
+            Image ROS message.
         '''
         # img = self._cv_bridge.imgmsg_to_cv2(msg) # passthrough encoding
         img = self._cv_bridge.imgmsg_to_cv2(msg, desired_encoding=self.param_camera_colorspace.get_parameter_value())
@@ -331,6 +345,9 @@ class PoseEstimatorNode(rclpy.Node):
             proc.start()
 
     def image_timer_callback(self):
+        '''
+        Callback to publish rectified images.
+        '''
         for cam in ['left', 'right']:
             with self._lock_out[cam]:
                 np.copyto(self._local_img_out[cam], self._shmem_img_out[cam])
@@ -342,8 +359,10 @@ class PoseEstimatorNode(rclpy.Node):
         
         
     def landmark_timer_callback(self):
+        '''
+        Callback to publish 3D landmarks.
+        '''
         # make a local copy of data
-
         body_landmarks = {
             'left': None,
             'right': None
@@ -357,7 +376,7 @@ class PoseEstimatorNode(rclpy.Node):
                     body_landmarks[cam] = self._shmem_landmarks_out[cam]['body']
         
         # perform triangulation
-        body_landmarks_3d = DirectLinearTransform(self.P_left,
+        body_landmarks_3d = triangulate(self.P_left,
                                            self.P_right,
                                            body_landmarks['left']*self.stereo_size,
                                            body_landmarks['right']*self.stereo_size)
@@ -375,7 +394,26 @@ class PoseEstimatorNode(rclpy.Node):
         # publish
         self.pub_body_landmarks.publish(msg)
 
-def DirectLinearTransform(P1, P2, points1, points2):
+def triangulate(P1, P2, points1, points2):
+    '''
+    Perform triangulation using direct linear transform.
+
+    Parameters
+    ==========
+    P1 : 4x4 ArrayLike
+        Projection matrix of camera 1.
+    P2 : 4x4 ArrayLike
+        Projection matrix of camera 2.
+    points1 : nx2 ArrayLike
+        2D points in camera 1.
+    points2: nx2 ArrayLike
+        2D points in camera 2.
+
+    Returns
+    =======
+    points3D : nx3 ArrayLike
+        Triangulated 3D points.
+    '''
     A = np.array([[point1[1]*P1[2,:] - P1[1,:],
                     P1[0,:] - point1[0]*P1[2,:],
                     point2[1]*P2[2,:] - P2[1,:],
