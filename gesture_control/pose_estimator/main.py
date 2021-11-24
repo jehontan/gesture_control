@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from pose_estimation import *
+from .pose_estimation import *
 import tf2_ros
 
 from ros2_numpy import numpify
@@ -29,7 +29,7 @@ class CameraConfig:
     p: Sequence[float] = None # Projection  matrix, 3x4 row-major
 
 
-class PoseEstimatorNode(rclpy.Node):
+class PoseEstimatorNode(rclpy.node.Node):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -49,32 +49,32 @@ class PoseEstimatorNode(rclpy.Node):
 
         # setup subscribers
         self.sub_image = {
-            'left': self.create_subscriber(
+            'left': self.create_subscription(
                         Image,
                         'left/image_raw',
                         partialmethod(self.image_callback, cam='left'),
-                        rclpy.qos.QoSPresetProfiles.SENSOR_DATA
+                        rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
                     ),
-            'right': self.create_subscriber(
+            'right': self.create_subscription(
                         Image,
                         'right/image_raw',
                         partialmethod(self.image_callback, cam='right'),
-                        rclpy.qos.QoSPresetProfiles.SENSOR_DATA
+                        rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
                     )
         }
 
         self.sub_cam_info = {
-            'left': self.create_subscriber(
+            'left': self.create_subscription(
                         CameraInfo,
                         'left/camera_info',
                         partialmethod(self.camera_info_callback, cam='left'),
-                        rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT
+                        rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
                     ),
-            'right': self.create_subscriber(
+            'right': self.create_subscription(
                         CameraInfo,
                         'right/camera_info',
                         partialmethod(self.camera_info_callback, cam='right'),
-                        rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT
+                        rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
                     )
         }
         
@@ -83,12 +83,12 @@ class PoseEstimatorNode(rclpy.Node):
             'left': self.create_publisher(
                     Image,
                     'left/image_rect_color',
-                    rclpy.qos.QoSPresetProfiles.SENSOR_DATA
+                    rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
                 ),
             'right': self.create_publisher(
                     Image,
                     'right/image_rect_color',
-                    rclpy.qos.QoSPresetProfiles.SENSOR_DATA
+                    rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
                 ),
         }
 
@@ -96,7 +96,7 @@ class PoseEstimatorNode(rclpy.Node):
         self.pub_body_landmarks = self.create_publisher(
             BodyLandmarksStamped,
             'body_landmarks',
-            rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT
+            rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
         )
 
         # setup tf listener
@@ -215,7 +215,7 @@ class PoseEstimatorNode(rclpy.Node):
             Image ROS message.
         '''
         # img = self._cv_bridge.imgmsg_to_cv2(msg) # passthrough encoding
-        img = self._cv_bridge.imgmsg_to_cv2(msg, desired_encoding=self.param_camera_colorspace.get_parameter_value())
+        img = self._cv_bridge.imgmsg_to_cv2(msg, desired_encoding=self.param_camera_colorspace.value)
 
         with self._lock_in[cam]:
             np.copyto(self._shmem_img_in[cam], img)
@@ -242,8 +242,8 @@ class PoseEstimatorNode(rclpy.Node):
         (width, height) = (self.camera_info['left'].width, self.camera_info['left'].height)
 
         # Get the relative extrinsics between the left and right camera
-        camera_left_frame = self.param_camera_left_frame.get_parameter_value()
-        camera_right_frame  = self.param_camera_right_frame.get_parameter_value()
+        camera_left_frame = self.param_camera_left_frame.value
+        camera_right_frame  = self.param_camera_right_frame.value
 
         _tf = self.tf_buffer.lookup_transform(tagret_frame=camera_right_frame, source_frame=camera_left_frame)
         
@@ -291,7 +291,7 @@ class PoseEstimatorNode(rclpy.Node):
         self._stop_event.clear()
 
         # get colorspace from param
-        _cs = self.param_camera_colorspace.get_parameter_value()
+        _cs = self.param_camera_colorspace.value
         if _cs == 'GRAY':
             _cs = ColorSpace.GRAY
         elif _cs == 'RGB':
@@ -305,7 +305,7 @@ class PoseEstimatorNode(rclpy.Node):
 
         for cam in ['left', 'right']:
             # setup local cache
-            self._local_img_out[cam] = np.array((stereo_height_px, stereo_width_px, 3), dtype=np.uint8)
+            self._local_img_out[cam] = np.empty((stereo_height_px, stereo_width_px, 3), dtype=np.uint8)
 
             # setup shared memory
             self._shmem_img_in[cam] = SharedImage(width, height, _cs, changed_flag=self._flag_in[cam])
@@ -354,7 +354,7 @@ class PoseEstimatorNode(rclpy.Node):
         
             msg = self._cv_bridge.cv2_to_imgmsg(self._local_img_out[cam], encoding='rgb8')
             msg.header.stamp = self.get_clock().now().to_msg()
-            msg.header.frame_id = self.param_output_frame.get_parameter_value()
+            msg.header.frame_id = self.param_output_frame.value
             self.pub_image[cam].publish(msg)
         
         
@@ -384,7 +384,7 @@ class PoseEstimatorNode(rclpy.Node):
         # pack into message
         msg = BodyLandmarksStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = self.param_output_frame.get_parameter_value()
+        msg.header.frame_id = self.param_output_frame.value
         
         for row in body_landmarks_3d:
             msg.landmarks.x = row[0]

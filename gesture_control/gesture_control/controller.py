@@ -10,15 +10,7 @@ import tf2_ros
 from tf2_ros import TransformException
 from tf2_ros.transform_listener import TransformListener
 
-# DEFAULT_QOS_PROFILE = rclpy.qos.QoSProfile(
-#     depth = 1,
-#     durability = rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
-#     history = rclpy.qos.HistoryPolicy.KEEP_LAST,
-#     liveliness = rclpy.qos.LivelinessPolicy.SYSTEM_DEFAULT,
-#     reliability = rclpy.qos.ReliabilityPolicy.BEST_EFFORT
-# )
-
-class PointToNavigateController(rclpy.Node):
+class PointToNavigateController(rclpy.node.Node):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -30,14 +22,14 @@ class PointToNavigateController(rclpy.Node):
             BodyPoseStamped,
             'body_pose',
             self.pose_callback,
-            rclpy.qos.QoSPresetProfiles.SENSOR_DATA
+            rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
         )
 
         # setup publishers
         self.pub_goal = self.create_publisher(
             PoseStamped,
             'goal_pose',
-            rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT
+            rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
         )
 
         # setup tf
@@ -56,7 +48,7 @@ class PointToNavigateController(rclpy.Node):
             Body pose message. Landmark points in meters, relative to robot coordinate system.
         '''
         
-        target_frame = self.param_fixed_frame.get_parameter_value()
+        target_frame = self.param_fixed_frame.value
         source_frame = msg.header.frame_id
 
         # get landmarks of interest as numpy homogeneous points
