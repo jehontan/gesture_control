@@ -86,3 +86,11 @@ class PointToNavigateController(rclpy.node.Node):
 
         # publish pose
         self.pub_goal.publish(goal)
+
+def main(args=None):
+    rclpy.init(args=args)
+    
+    node = PointToNavigateController(node_name='gesture_controller')
+
+    rclpy.spin(node)
+    rclpy.shutdown()

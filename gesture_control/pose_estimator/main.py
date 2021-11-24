@@ -422,3 +422,12 @@ def triangulate(P1, P2, points1, points2):
 
     U, s, Vh = np.linalg.svd(A, full_matrices=False)
     return Vh[:, 3, 0:3]/Vh[:, 3, 3, np.newaxis]
+
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    node = PoseEstimatorNode(node_name='pose_estimator')
+
+    rclpy.spin(node)
+    rclpy.shutdown()

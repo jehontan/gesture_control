@@ -18,7 +18,6 @@ setup(
         'setuptools',
         'numpy>=1.20',
         'mediapipe>=0.8.9',
-        'ros2_numpy>=2.0.4',
         'opencv-contrib-python>=4.5.2'
     ],
     zip_safe=True,
@@ -29,6 +28,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'pose_estimator = pose_estimator.main:main',
+            'gesture_controller = gesture_control.controller:main',
         ],
     },
 )
