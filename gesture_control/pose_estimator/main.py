@@ -189,7 +189,7 @@ class PoseEstimatorNode(rclpy.node.Node):
         '''
 
         # ignore timestamp
-        msg.header.stamp = rclpy.time.Time(seconds=0)
+        msg.header.stamp = rclpy.time.Time(seconds=0).to_msg()
 
         if msg != self.camera_info[cam]:
             # something changed, update
