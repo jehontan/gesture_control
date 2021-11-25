@@ -244,10 +244,32 @@ class PoseEstimatorNode(rclpy.node.Node):
         camera_left_frame = self.param_camera_left_frame.value
         camera_right_frame  = self.param_camera_right_frame.value
 
-        _tf = self.tf_buffer.lookup_transform(tagret_frame=camera_right_frame, source_frame=camera_left_frame)
+        try:
+            _tf = self.tf_buffer.lookup_transform(
+                target_frame=camera_right_frame,
+                source_frame=camera_left_frame,
+                time=self.get_clock().now(),
+                timeout=Duration(seconds=1)
+            )
         
-        T = np.array(numpify(_tf.translation))
-        R = Rotation.from_quat(numpify(_tf.rotation))
+        except tf2_ros.TransformException as ex:
+            self.get_logger().log('Could not get {} -> {} transform. {}'.format(camera_left_frame, camera_right_frame, ex), LoggingSeverity.WARN)
+
+            # try again when ready
+            # self.get_logger().log('Waiting for transform...'.format(camera_left_frame, camera_right_frame, ex), LoggingSeverity.INFO)
+            # fut = self.tf_buffer.wait_for_transform_async(
+            #     target_frame=camera_right_frame,
+            #     source_frame=camera_left_frame,
+            #     time=self.get_clock().now()
+            # )
+
+            # fut.add_done_callback(self.setup_bg_proc)
+
+            return
+
+
+        T = np.array(numpify(_tf.transform.translation))
+        R = Rotation.from_quat(numpify(_tf.transform.rotation))
 
         stereo_fov_rad = 90 * (np.pi/180)  # 90 degree desired fov
         stereo_height_px = 600          # 300x300 pixel stereo output
