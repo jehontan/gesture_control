@@ -19,6 +19,8 @@ from gesture_control_interfaces.msg import BodyLandmarksStamped
 
 from functools import partialmethod
 
+from rclpy.logging import LoggingSeverity
+
 @dataclass
 class CameraConfig:
     height: int = None
@@ -225,7 +227,9 @@ class PoseEstimatorNode(rclpy.node.Node):
         Sets up shared memory for use with background processes.
         Initializes and starts background processes.
         '''
-            
+        
+        self.get_logger().log('Initializing background processes...', LoggingSeverity.INFO)
+
         # unset is ready flag
         self._is_ready = False
 
@@ -302,11 +306,15 @@ class PoseEstimatorNode(rclpy.node.Node):
             'left': cv2.fisheye.initUndistortRectifyMap(K_left, D_left, R_left, self.P_left, self.stereo_size, m1type),
             'right': cv2.fisheye.initUndistortRectifyMap(K_right, D_right, R_right, self.P_right, self.stereo_size, m1type)
         }
+
+        self.get_logger().log('Stopping background processes...', LoggingSeverity.INFO)
         
         # ensure all processes stopped and joined
         for proc in self._bg_proc.values():
             if proc is not None:
                 proc.join()
+        
+        self.get_logger().log('Background process stopped.', LoggingSeverity.INFO)
 
         # clear stop event
         self._stop_event.clear()
@@ -323,6 +331,8 @@ class PoseEstimatorNode(rclpy.node.Node):
             _cs = ColorSpace.HSV
         else:
             raise RuntimeError('Unknown camera colorspace.')
+
+        self.get_logger().log('Setting up shared memory...', LoggingSeverity.INFO)
 
         for cam in ['left', 'right']:
             # setup local cache
@@ -377,6 +387,8 @@ class PoseEstimatorNode(rclpy.node.Node):
 
         landmark_output_rate_hz = self.param_landmark_output_rate_hz.value
         self.landmark_timer = self.create_timer(1.0/landmark_output_rate_hz, self.landmark_timer_callback)
+
+        self.get_logger().log('Timers initialized.', LoggingSeverity.INFO)
 
     def image_timer_callback(self):
         '''
