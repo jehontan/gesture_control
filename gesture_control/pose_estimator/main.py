@@ -52,13 +52,13 @@ class PoseEstimatorNode(rclpy.node.Node):
             'left': self.create_subscription(
                         Image,
                         'left/image_raw',
-                        partialmethod(self.image_callback, cam='left'),
+                        lambda msg: self.image_callback('left', msg),
                         rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
                     ),
             'right': self.create_subscription(
                         Image,
                         'right/image_raw',
-                        partialmethod(self.image_callback, cam='right'),
+                        lambda msg: self.image_callback('right', msg),
                         rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
                     )
         }
@@ -67,13 +67,13 @@ class PoseEstimatorNode(rclpy.node.Node):
             'left': self.create_subscription(
                         CameraInfo,
                         'left/camera_info',
-                        partialmethod(self.camera_info_callback, cam='left'),
+                        lambda msg: self.camera_info_callback('left', msg),
                         rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
                     ),
             'right': self.create_subscription(
                         CameraInfo,
                         'right/camera_info',
-                        partialmethod(self.camera_info_callback, cam='right'),
+                        lambda msg: self.camera_info_callback('right', msg),
                         rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
                     )
         }
