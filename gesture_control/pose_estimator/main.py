@@ -39,6 +39,8 @@ class PoseEstimatorNode(rclpy.node.Node):
             'right': CameraInfo()
         }
 
+        self._is_ready = False
+
         # setup params
         self.param_camera_left_frame = self.declare_parameter('camera_left_frame', value='camera_left_frame')
         self.param_camera_right_frame = self.declare_parameter('camera_right_frame', value='camera_right_frame')
@@ -207,12 +209,13 @@ class PoseEstimatorNode(rclpy.node.Node):
         msg : sensor_msgs.msg.Image
             Image ROS message.
         '''
-        # img = self._cv_bridge.imgmsg_to_cv2(msg) # passthrough encoding
-        img = self._cv_bridge.imgmsg_to_cv2(msg, desired_encoding=self.param_camera_colorspace.value)
+        if self._is_ready:
+            # img = self._cv_bridge.imgmsg_to_cv2(msg) # passthrough encoding
+            img = self._cv_bridge.imgmsg_to_cv2(msg, desired_encoding=self.param_camera_colorspace.value)
 
-        with self._lock_in[cam]:
-            np.copyto(self._shmem_img_in[cam], img)
-            self._flag_in[cam].value = True
+            with self._lock_in[cam]:
+                np.copyto(self._shmem_img_in[cam], img)
+                self._flag_in[cam].value = True
     
     def setup_bg_proc(self):
         '''
@@ -223,6 +226,9 @@ class PoseEstimatorNode(rclpy.node.Node):
         Initializes and starts background processes.
         '''
             
+        # unset is ready flag
+        self._is_ready = False
+
         # set the stop event
         self._stop_event.set()
 
@@ -332,9 +338,16 @@ class PoseEstimatorNode(rclpy.node.Node):
                 name='{} bg proc'.format(cam)
             )
 
+        self.get_logger().log('Shared memory set up.', LoggingSeverity.INFO)
+
         # start bg processes
         for proc in self._bg_proc.values():
             proc.start()
+
+        self.get_logger().log('Background processes started.', LoggingSeverity.INFO)
+
+        # set is ready flag
+        self._is_ready = True
 
         # setup timer to output rectified and body pose
         image_output_rate_hz = self.param_image_output_rate_hz.value
@@ -355,8 +368,7 @@ class PoseEstimatorNode(rclpy.node.Node):
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.header.frame_id = self.param_output_frame.value
             self.pub_image[cam].publish(msg)
-        
-        
+              
     def landmark_timer_callback(self):
         '''
         Callback to publish 3D landmarks.
