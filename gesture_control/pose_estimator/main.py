@@ -105,7 +105,7 @@ class PoseEstimatorNode(rclpy.node.Node):
 
         # setup tf listener
         self.tf_buffer = tf2_ros.buffer.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=True)
 
         # setup background process and shared memory
         self._stop_event = multiprocessing.Event()
