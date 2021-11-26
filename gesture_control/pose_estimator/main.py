@@ -428,10 +428,14 @@ class PoseEstimatorNode(rclpy.node.Node):
                     return
 
         # perform triangulation
-        body_landmarks_3d = triangulate(self.P_left,
-                                           self.P_right,
-                                           body_landmarks['left']*self.stereo_size,
-                                           body_landmarks['right']*self.stereo_size)
+        try:
+            body_landmarks_3d = triangulate(self.P_left,
+                                            self.P_right,
+                                            body_landmarks['left']*self.stereo_size,
+                                            body_landmarks['right']*self.stereo_size)
+        except np.linalg.LinAlgError as ex:
+            self.get_logger().log('Triangulation failed. {}'.format(ex), LoggingSeverity.WARN)
+            return
 
         # pack into message
         msg = BodyLandmarksStamped()
