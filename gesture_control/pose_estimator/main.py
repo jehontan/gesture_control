@@ -2,7 +2,9 @@ import ctypes
 import multiprocessing
 from typing import Sequence
 import rclpy
+from rclpy.duration import Duration
 from  sensor_msgs.msg import Image, CameraInfo
+from geometry_msgs.msg import Point
 from  dataclasses import  dataclass
 import cv2
 
@@ -212,11 +214,12 @@ class PoseEstimatorNode(rclpy.node.Node):
             Image ROS message.
         '''
         if self._is_ready:
-            # img = self._cv_bridge.imgmsg_to_cv2(msg) # passthrough encoding
-            img = self._cv_bridge.imgmsg_to_cv2(msg, desired_encoding=self.param_camera_colorspace.value)
+            img = self._cv_bridge.imgmsg_to_cv2(msg) # passthrough encoding
+            
+            # img = self._cv_bridge.imgmsg_to_cv2(msg, desired_encoding=self.param_camera_colorspace.value)
 
             with self._lock_in[cam]:
-                np.copyto(self._shmem_img_in[cam], img)
+                np.copyto(self._shmem_img_in[cam].as_numpy(), img)
                 self._flag_in[cam].value = True
     
     def setup_bg_proc(self):
@@ -238,10 +241,10 @@ class PoseEstimatorNode(rclpy.node.Node):
 
         # compute undistortion maps
         K_left  = np.array(self.camera_info['left'].k).reshape(3,3)
-        D_left  = self.camera_info['left'].d
+        D_left  = np.array(self.camera_info['left'].d[:4])
 
         K_right = np.array(self.camera_info['right'].k).reshape(3,3)
-        D_right = self.camera_info['right'].d
+        D_right = np.array(self.camera_info['right'].d[:4])
         (width, height) = (self.camera_info['left'].width, self.camera_info['left'].height)
 
         # Get the relative extrinsics between the left and right camera
@@ -273,7 +276,8 @@ class PoseEstimatorNode(rclpy.node.Node):
 
 
         T = np.array(numpify(_tf.transform.translation))
-        R = Rotation.from_quat(numpify(_tf.transform.rotation))
+        R = Rotation.from_quat(numpify(_tf.transform.rotation)).as_matrix()
+
 
         stereo_fov_rad = 90 * (np.pi/180)  # 90 degree desired fov
         stereo_height_px = 600          # 300x300 pixel stereo output
@@ -396,7 +400,7 @@ class PoseEstimatorNode(rclpy.node.Node):
         '''
         for cam in ['left', 'right']:
             with self._lock_out[cam]:
-                np.copyto(self._local_img_out[cam], self._shmem_img_out[cam])
+                np.copyto(self._local_img_out[cam], self._shmem_img_out[cam].as_numpy())
         
             msg = self._cv_bridge.cv2_to_imgmsg(self._local_img_out[cam], encoding='rgb8')
             msg.header.stamp = self.get_clock().now().to_msg()
@@ -417,9 +421,12 @@ class PoseEstimatorNode(rclpy.node.Node):
             with self._lock_out[cam]:
                 if self._flag_out[cam].value:
                     self._flag_out[cam].value = False # set to false to consume
-                    np.copyto(self._local_img_out[cam], self._shmem_img_out[cam])
-                    body_landmarks[cam] = self._shmem_landmarks_out[cam]['body']
-        
+                    np.copyto(self._local_img_out[cam], self._shmem_img_out[cam].as_numpy())
+                    body_landmarks[cam] = self._shmem_landmarks_out[cam]['body'].as_numpy()
+                else:
+                    # no changes, terminate
+                    return
+
         # perform triangulation
         body_landmarks_3d = triangulate(self.P_left,
                                            self.P_right,
@@ -431,10 +438,12 @@ class PoseEstimatorNode(rclpy.node.Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = self.param_output_frame.value
         
-        for row in body_landmarks_3d:
-            msg.landmarks.x = row[0]
-            msg.landmarks.y = row[1]
-            msg.landmarks.z = row[2]
+        for i, row in enumerate(body_landmarks_3d):
+            landmark = Point()
+            landmark.x = row[0]
+            landmark.y = row[1]
+            landmark.z = row[2]
+            msg.landmarks.append(landmark)
 
         # publish
         self.pub_body_landmarks.publish(msg)
