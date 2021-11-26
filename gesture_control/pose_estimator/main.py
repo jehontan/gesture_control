@@ -260,14 +260,14 @@ class PoseEstimatorNode(rclpy.node.Node):
             self.get_logger().log('Could not get {} -> {} transform. {}'.format(camera_left_frame, camera_right_frame, ex), LoggingSeverity.WARN)
 
             # try again when ready
-            # self.get_logger().log('Waiting for transform...'.format(camera_left_frame, camera_right_frame, ex), LoggingSeverity.INFO)
-            # fut = self.tf_buffer.wait_for_transform_async(
-            #     target_frame=camera_right_frame,
-            #     source_frame=camera_left_frame,
-            #     time=self.get_clock().now()
-            # )
+            self.get_logger().log('Waiting for transform...'.format(camera_left_frame, camera_right_frame, ex), LoggingSeverity.INFO)
+            fut = self.tf_buffer.wait_for_transform_async(
+                target_frame=camera_right_frame,
+                source_frame=camera_left_frame,
+                time=self.get_clock().now()
+            )
 
-            # fut.add_done_callback(self.setup_bg_proc)
+            self.executor.spin_until_future_complete(fut)
 
             return
 
