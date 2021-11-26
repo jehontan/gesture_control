@@ -371,7 +371,7 @@ class PoseEstimatorNode(rclpy.node.Node):
                 out_face_landmarks=self._shmem_landmarks_out[cam]['face'],
                 stop_event=self._stop_event,
                 out_annotate=PoseAnnotationType.BODY,
-                name='{} bg proc'.format(cam)
+                name='{}BackgroundProcess'.format(cam.capitalize())
             )
 
         self.get_logger().log('Shared memory set up.', LoggingSeverity.INFO)
