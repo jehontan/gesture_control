@@ -89,12 +89,12 @@ class PoseEstimatorNode(rclpy.node.Node):
             'left': self.create_publisher(
                     Image,
                     'left/image_rect_color',
-                    rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
+                    rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
                 ),
             'right': self.create_publisher(
                     Image,
                     'right/image_rect_color',
-                    rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
+                    rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
                 ),
         }
 
