@@ -348,8 +348,8 @@ class PoseEstimatorNode(rclpy.node.Node):
 
             self._shmem_landmarks_out[cam]['body'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_BODY_LANDMARKS,2), dtype=np.double, changed_flag=self._flag_out[cam])
             self._shmem_landmarks_out[cam]['face'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_FACE_LANDMARKS,2), dtype=np.double, changed_flag=self._flag_out[cam])
-            self._shmem_landmarks_out[cam]['hands']['left'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_HAND_LANDMARKS,2), dtype=np.double, changed_flag=self._flag_out[cam])
-            self._shmem_landmarks_out[cam]['hands']['right'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_HAND_LANDMARKS,2), dtype=np.double, changed_flag=self._flag_out[cam])
+            self._shmem_landmarks_out[cam]['hands']['left'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_HAND_LANDMARKS,3), dtype=np.double, changed_flag=self._flag_out[cam])
+            self._shmem_landmarks_out[cam]['hands']['right'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_HAND_LANDMARKS,3), dtype=np.double, changed_flag=self._flag_out[cam])
 
             # setup bg process
             _config = PoseEstimator2DConfig(

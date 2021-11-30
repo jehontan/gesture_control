@@ -134,8 +134,8 @@ class PoseEstimator2DProcess(Process):
                  out_lock:Lock,                            # shared lock for all output
                  out_image:SharedImage,                # undistorted image
                  out_body_landmarks:SharedNumpyArray,       # (33, 2)
-                 out_left_hand_landmarks:SharedNumpyArray,  # (21, 2)
-                 out_right_hand_landmarks:SharedNumpyArray, # (21, 2)
+                 out_left_hand_landmarks:SharedNumpyArray,  # (21, 3)
+                 out_right_hand_landmarks:SharedNumpyArray, # (21, 3)
                  out_face_landmarks: SharedNumpyArray,      # (468, 2)
                  stop_event:Event,
                  out_annotate:PoseAnnotationType = PoseAnnotationType.NONE,
@@ -222,8 +222,8 @@ class PoseEstimator2DProcess(Process):
                         # convert landmarks
 
                         body_landmarks = self.landmarks_to_numpy(self.NUM_BODY_LANDMARKS, results.pose_landmarks)
-                        left_hand_landmarks = self.landmarks_to_numpy(self.NUM_HAND_LANDMARKS, results.left_hand_landmarks)
-                        right_hand_landmarks = self.landmarks_to_numpy(self.NUM_HAND_LANDMARKS, results.right_hand_landmarks)
+                        left_hand_landmarks = self.landmarks_to_numpy(self.NUM_HAND_LANDMARKS, results.left_hand_landmarks, keep_z=True)
+                        right_hand_landmarks = self.landmarks_to_numpy(self.NUM_HAND_LANDMARKS, results.right_hand_landmarks, keep_z=True)
                         face_landmarks = self.landmarks_to_numpy(self.NUM_FACE_LANDMARKS, results.face_landmarks)
 
                         # write to outputs
@@ -237,11 +237,31 @@ class PoseEstimator2DProcess(Process):
                     else:
                         self.in_lock.release()
 
-    def landmarks_to_numpy(self, n, landmarks:Any) -> ArrayLike:
+    def landmarks_to_numpy(self, n:int, landmarks:Any, keep_z:bool=False) -> ArrayLike:
+        '''
+        Convert Mediapipe landmarks object to numpy array.
+
+        Parameters
+        ==========
+        n : int
+            number of landmarks
+        landmarks : Mediapipe landmarks object
+            Mediapipe landmarks object to convert
+        keep_z : bool
+            Whether or not to keep the z axis result.
+
+        Returns
+        =======
+        arr : (n,2) ArrayLike | (n,3) ArrayLike
+            Array of 3D or 2D points, depending on keep_z.
+        '''
         if landmarks is None:
-            return np.inf*np.ones((n, 2))
+            return np.inf*np.ones((n, 3 if keep_z else 2))
         else:
-            return np.array([(l.x, l.y) for l in landmarks.landmark])
+            if keep_z:
+                return np.array([(l.x, l.y, l.z) for l in landmarks.landmark])
+            else:
+                return np.array([(l.x, l.y) for l in landmarks.landmark])
 
 class BodyLandmarks(IntEnum):
     NOSE = 0
