@@ -370,7 +370,7 @@ class PoseEstimatorNode(rclpy.node.Node):
                 out_right_hand_landmarks=self._shmem_landmarks_out[cam]['hands']['right'],
                 out_face_landmarks=self._shmem_landmarks_out[cam]['face'],
                 stop_event=self._stop_event,
-                out_annotate=PoseAnnotationType.BODY,
+                out_annotate=PoseAnnotationType.BODY | PoseAnnotationType.HANDS,
                 name='{}BackgroundProcess'.format(cam.capitalize())
             )
 
