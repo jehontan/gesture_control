@@ -6,8 +6,9 @@ setup(
     name=package_name,
     version='0.0.0',
     packages=[
+        'gesture_control',
         'pose_estimator',
-        package_name
+        'pose_visualizer',
     ],
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -30,6 +31,7 @@ setup(
         'console_scripts': [
             'pose_estimator = pose_estimator.main:main',
             'gesture_controller = gesture_control.controller:main',
+            'pose_visualizer = pose_visualizer.pose_visualizer:main',
         ],
     },
 )
