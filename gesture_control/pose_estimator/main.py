@@ -14,12 +14,10 @@ from scipy.spatial.transform import Rotation
 from .pose_estimation import *
 import tf2_ros
 
-from ros2_numpy import numpify
+from ros2_numpy import numpify, msgify
 from cv_bridge import CvBridge
 
-from gesture_control_interfaces.msg import BodyLandmarksStamped
-
-from functools import partialmethod
+from gesture_control_interfaces.msg import BodyLandmarksStamped, HandLandmarksStamped
 
 from rclpy.logging import LoggingSeverity
 
@@ -49,8 +47,9 @@ class PoseEstimatorNode(rclpy.node.Node):
         self.param_camera_left_frame = self.declare_parameter('camera_left_frame', value='camera_left_frame')
         self.param_camera_right_frame = self.declare_parameter('camera_right_frame', value='camera_right_frame')
         self.param_camera_colorspace = self.declare_parameter('camera_colorspace', value='GRAY')
-        self.param_image_output_rate_hz = self.declare_parameter('image_output_rate_hz', value=10.0)
-        self.param_landmark_output_rate_hz = self.declare_parameter('landmark_output_rate_hz', value=10.0)
+        self.param_image_output_rate_hz = self.declare_parameter('image_output_rate_hz', value=12.0)
+        self.param_body_landmark_output_rate_hz = self.declare_parameter('body_landmark_output_rate_hz', value=10.0)
+        self.param_hand_landmark_output_rate_hz = self.declare_parameter('hand_landmark_output_rate_hz', value=10.0)
         self.param_output_frame = self.declare_parameter('output_frame', value='stereo_camera_frame')
 
         # setup subscribers
@@ -105,6 +104,19 @@ class PoseEstimatorNode(rclpy.node.Node):
             rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
         )
 
+        self.pub_hand_landmarks = {
+            'left': self.create_publisher(
+                        HandLandmarksStamped,
+                        'hand_landmarks/left_hand',
+                        rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
+                    ),
+            'right': self.create_publisher(
+                         HandLandmarksStamped,
+                         'hand_landmarks/right_hand',
+                         rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
+                     )
+        }
+
         # setup tf listener
         self.tf_buffer = tf2_ros.buffer.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=True)
@@ -116,15 +128,10 @@ class PoseEstimatorNode(rclpy.node.Node):
             'right': None
         }
 
-        # lock and flag for input shmem
+        # lock for input shmem
         self._lock_in = {
             'left': multiprocessing.Lock(),
             'right': multiprocessing.Lock()
-        }
-
-        self._flag_in = {
-            'left': multiprocessing.Value(ctypes.c_bool),
-            'right': multiprocessing.Value(ctypes.c_bool)
         }
 
         # shared memory for input images
@@ -133,15 +140,10 @@ class PoseEstimatorNode(rclpy.node.Node):
             'right': None
         }
 
-        # lock and flag for output shmem
+        # lock for output shmem
         self._lock_out = {
             'left': multiprocessing.Lock(),
             'right': multiprocessing.Lock()
-        }
-
-        self._flag_out = {
-            'left': multiprocessing.Value(ctypes.c_bool),
-            'right': multiprocessing.Value(ctypes.c_bool)
         }
 
         # shared memory for output images
@@ -172,6 +174,24 @@ class PoseEstimatorNode(rclpy.node.Node):
                 'hands': {
                     'left': None,
                     'right': None
+                }
+            },
+        }
+
+        # local cache for output landmarks
+        self._local_landmarks_out = {
+            'left': {
+                'body': np.empty((PoseEstimator2DProcess.NUM_BODY_LANDMARKS, 2)),
+                'hands': {
+                    'left': np.empty((PoseEstimator2DProcess.NUM_HAND_LANDMARKS, 3)),
+                    'right': np.empty((PoseEstimator2DProcess.NUM_HAND_LANDMARKS, 3))
+                }
+            },
+            'right': {
+                'body': np.empty((PoseEstimator2DProcess.NUM_BODY_LANDMARKS, 2)),
+                'hands': {
+                    'left': np.empty((PoseEstimator2DProcess.NUM_HAND_LANDMARKS, 3)),
+                    'right': np.empty((PoseEstimator2DProcess.NUM_HAND_LANDMARKS, 3))
                 }
             },
         }
@@ -220,7 +240,7 @@ class PoseEstimatorNode(rclpy.node.Node):
 
             with self._lock_in[cam]:
                 np.copyto(self._shmem_img_in[cam].as_numpy(), img)
-                self._flag_in[cam].value = True
+                self._shmem_img_in[cam].set_changed()
     
     def setup_bg_proc(self):
         '''
@@ -343,13 +363,13 @@ class PoseEstimatorNode(rclpy.node.Node):
             self._local_img_out[cam] = np.empty((stereo_height_px, stereo_width_px, 3), dtype=np.uint8)
 
             # setup shared memory
-            self._shmem_img_in[cam] = SharedImage(width, height, _cs, changed_flag=self._flag_in[cam])
-            self._shmem_img_out[cam] = SharedImage(stereo_width_px, stereo_height_px, ColorSpace.RGB, changed_flag=self._flag_out[cam])
+            self._shmem_img_in[cam] = SharedImage(width, height, _cs)
+            self._shmem_img_out[cam] = SharedImage(stereo_width_px, stereo_height_px, ColorSpace.RGB)
 
-            self._shmem_landmarks_out[cam]['body'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_BODY_LANDMARKS,2), dtype=np.double, changed_flag=self._flag_out[cam])
-            self._shmem_landmarks_out[cam]['face'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_FACE_LANDMARKS,2), dtype=np.double, changed_flag=self._flag_out[cam])
-            self._shmem_landmarks_out[cam]['hands']['left'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_HAND_LANDMARKS,3), dtype=np.double, changed_flag=self._flag_out[cam])
-            self._shmem_landmarks_out[cam]['hands']['right'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_HAND_LANDMARKS,3), dtype=np.double, changed_flag=self._flag_out[cam])
+            self._shmem_landmarks_out[cam]['body'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_BODY_LANDMARKS,2), dtype=np.double)
+            self._shmem_landmarks_out[cam]['face'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_FACE_LANDMARKS,2), dtype=np.double)
+            self._shmem_landmarks_out[cam]['hands']['left'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_HAND_LANDMARKS,3), dtype=np.double)
+            self._shmem_landmarks_out[cam]['hands']['right'] = SharedNumpyArray((PoseEstimator2DProcess.NUM_HAND_LANDMARKS,3), dtype=np.double)
 
             # setup bg process
             _config = PoseEstimator2DConfig(
@@ -389,8 +409,11 @@ class PoseEstimatorNode(rclpy.node.Node):
         image_output_rate_hz = self.param_image_output_rate_hz.value
         self.image_timer = self.create_timer(1.0/image_output_rate_hz, self.image_timer_callback)
 
-        landmark_output_rate_hz = self.param_landmark_output_rate_hz.value
-        self.landmark_timer = self.create_timer(1.0/landmark_output_rate_hz, self.landmark_timer_callback)
+        body_landmark_output_rate_hz = self.param_body_landmark_output_rate_hz.value
+        self.body_landmark_timer = self.create_timer(1.0/body_landmark_output_rate_hz, self.body_landmark_timer_callback)
+
+        hand_landmark_output_rate_hz = self.param_hand_landmark_output_rate_hz.value
+        self.hand_landmark_timer = self.create_timer(1.0/hand_landmark_output_rate_hz, self.hand_landmark_timer_callback)
 
         self.get_logger().log('Timers initialized.', LoggingSeverity.INFO)
 
@@ -407,22 +430,17 @@ class PoseEstimatorNode(rclpy.node.Node):
             msg.header.frame_id = self.param_output_frame.value
             self.pub_image[cam].publish(msg)
               
-    def landmark_timer_callback(self):
+    def body_landmark_timer_callback(self):
         '''
-        Callback to publish 3D landmarks.
+        Callback to publish triangulated 3D body landmarks.
         '''
         # make a local copy of data
-        body_landmarks = {
-            'left': None,
-            'right': None
-        }
-
+        
         for cam in ['left', 'right']:
             with self._lock_out[cam]:
-                if self._flag_out[cam].value:
-                    self._flag_out[cam].value = False # set to false to consume
-                    np.copyto(self._local_img_out[cam], self._shmem_img_out[cam].as_numpy())
-                    body_landmarks[cam] = self._shmem_landmarks_out[cam]['body'].as_numpy()
+                if self._shmem_landmarks_out[cam]['body'].has_changed():
+                    self._shmem_landmarks_out[cam]['body'].set_changed(False) # set to false to consume
+                    np.copyto(self._local_landmarks_out[cam]['body'], self._shmem_landmarks_out[cam]['body'].as_numpy())
                 else:
                     # no changes, terminate
                     return
@@ -431,8 +449,8 @@ class PoseEstimatorNode(rclpy.node.Node):
         try:
             body_landmarks_3d = triangulate(self.P_left,
                                             self.P_right,
-                                            body_landmarks['left']*self.stereo_size,
-                                            body_landmarks['right']*self.stereo_size)
+                                            self._local_landmarks_out['left']['body']*self.stereo_size,
+                                            self._local_landmarks_out['right']['body']*self.stereo_size)
         except np.linalg.LinAlgError as ex:
             self.get_logger().log('Triangulation failed. {}'.format(ex), LoggingSeverity.WARN)
             return
@@ -443,14 +461,40 @@ class PoseEstimatorNode(rclpy.node.Node):
         msg.header.frame_id = self.param_output_frame.value
         
         for i, row in enumerate(body_landmarks_3d):
-            landmark = Point()
-            landmark.x = row[0]
-            landmark.y = row[1]
-            landmark.z = row[2]
-            msg.landmarks.append(landmark)
+            msg.landmarks[i] = msgify(Point, row)
 
         # publish
         self.pub_body_landmarks.publish(msg)
+
+    def hand_landmark_timer_callback(self):
+        '''
+        Callback to publish hand landmarks.
+
+        Only publishes the left and right hand landmarks from the left camera.
+        '''
+
+        # publish hand landmarks (from left camera)
+        with self._lock_out['left']:
+            for hand in ['left', 'right']:
+                if self._shmem_landmarks_out['left']['hands'][hand].has_changed():
+                    # copy hand landmarks
+                    np.copyto(self._local_landmarks_out['left']['hands'][hand], self._shmem_landmarks_out['left']['hands'][hand].as_numpy())
+                    self._shmem_landmarks_out['left']['hands'][hand].set_changed(False) # set False to consume
+
+                    # pack hand landmarks into message
+                    msg = HandLandmarksStamped()
+                    msg.header.stamp = self.get_clock().now().to_msg()
+                    msg.header.frame_id = self.param_output_frame.value
+                    
+                    for i, row in enumerate(self._local_landmarks_out['left']['hands'][hand]):
+                        msg.landmarks[i] = msgify(row)
+
+                    # publish
+                    self.pub_hand_landmarks[hand].publish(msg)
+                else:
+                    # no change, terminate
+                    return
+
 
 def triangulate(P1, P2, points1, points2):
     '''

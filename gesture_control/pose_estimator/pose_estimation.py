@@ -39,7 +39,7 @@ class SharedNumpyArray:
     def has_changed(self) -> bool:
         return self.changed_flag.value
 
-    def set_changed(self, value) -> None:
+    def set_changed(self, value=True) -> None:
         self.changed_flag.value = value
 
 class ColorSpace(IntEnum):
@@ -148,17 +148,16 @@ class PoseEstimator2DProcess(Process):
         # init inputs
         self.in_lock = in_lock
         self.in_changed = in_image.changed_flag
-        self.in_image = in_image.as_numpy()
+        self.in_image = in_image
 
         # init outputs
         self.out_lock = out_lock
-        self.out_changed = out_image.changed_flag  # this change flag is used for all output
-        self.out_image = out_image.as_numpy()
+        self.out_image = out_image
         
-        self.out_body_landmarks = out_body_landmarks.as_numpy()
-        self.out_left_hand_landmarks = out_left_hand_landmarks.as_numpy()
-        self.out_right_hand_landmarks = out_right_hand_landmarks.as_numpy()
-        self.out_face_landmarks = out_face_landmarks.as_numpy()
+        self.out_body_landmarks = out_body_landmarks
+        self.out_left_hand_landmarks = out_left_hand_landmarks
+        self.out_right_hand_landmarks = out_right_hand_landmarks
+        self.out_face_landmarks = out_face_landmarks
 
         # stop event
         self.stop_event = stop_event
@@ -192,7 +191,7 @@ class PoseEstimator2DProcess(Process):
                         self.logger.debug('Attempting to process...')
 
                         # make a numpy copy and release the lock
-                        image = self.in_image.copy()
+                        image = self.in_image.as_numpy().copy()
                         self.in_changed.value = False # set valid to False to indicate consumed
                         self.in_lock.release()
 
@@ -228,12 +227,16 @@ class PoseEstimator2DProcess(Process):
 
                         # write to outputs
                         with self.out_lock:
-                            np.copyto(self.out_image, image)
-                            np.copyto(self.out_body_landmarks, body_landmarks)
-                            np.copyto(self.out_left_hand_landmarks, left_hand_landmarks)
-                            np.copyto(self.out_right_hand_landmarks, right_hand_landmarks)
-                            np.copyto(self.out_face_landmarks, face_landmarks)
-                            self.out_changed.value = True # set True to indicate changed
+                            np.copyto(self.out_image.as_numpy(), image)
+                            self.out_image.set_changed()
+                            np.copyto(self.out_body_landmarks.as_numpy(), body_landmarks)
+                            self.out_body_landmarks.set_changed()
+                            np.copyto(self.out_left_hand_landmarks.as_numpy(), left_hand_landmarks)
+                            self.out_left_hand_landmarks.set_changed()
+                            np.copyto(self.out_right_hand_landmarks.as_numpy(), right_hand_landmarks)
+                            self.out_right_hand_landmarks.set_changed()
+                            np.copyto(self.out_face_landmarks.as_numpy(), face_landmarks)
+                            self.out_face_landmarks.set_changed()
                     else:
                         self.in_lock.release()
 
