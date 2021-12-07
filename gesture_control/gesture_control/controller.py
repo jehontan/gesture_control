@@ -3,7 +3,7 @@ import numpy as np
 import ros2_numpy as ros2np
 
 from pose_estimator.pose_estimation import BodyLandmarks
-from gesture_control_interfaces.msg import BodyPoseStamped
+from gesture_control_interfaces.msg import BodyLandmarksStamped, HandLandmarksStamped
 from geometry_msgs.msg import PoseStamped, Point
 
 import tf2_ros
@@ -19,10 +19,11 @@ class PointToNavigateController(rclpy.node.Node):
 
         # setup subscribers
         self.sub_pose = self.create_subscription(
-            BodyPoseStamped,
-            'body_pose',
-            self.pose_callback,
-            rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value
+            BodyLandmarksStamped,
+            'body_landmarks',
+            self.body_landmarks_callback,
+            rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
+        )
         )
 
         # setup publishers
