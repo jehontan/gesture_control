@@ -267,6 +267,11 @@ class PoseEstimator2DProcess(Process):
                 return np.array([(l.x, l.y) for l in landmarks.landmark])
 
 class BodyLandmarks(IntEnum):
+    '''
+    Enumeration of body landmarks.
+
+    Enum value corresponds to index of MediaPipe output.
+    '''
     NOSE = 0
     LEFT_EYE_INNER = 1
     LEFT_EYE = 2
@@ -302,6 +307,11 @@ class BodyLandmarks(IntEnum):
     RIGHT_FOOT_INDEX = 32
 
 class HandLandmarks(IntEnum):
+    '''
+    Enumeration of body landmarks.
+
+    Enum value corresponds to index of MediaPipe output.
+    '''
     WRIST = 0
     THUMB_CMC = 1
     THUMB_MCP = 2
